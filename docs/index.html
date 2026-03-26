@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>批量文件重命名工具</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242733;
+    --border: #2e3245;
+    --text: #e4e6f0;
+    --text2: #8b8fa3;
+    --accent: #6c8cff;
+    --accent-hover: #859dff;
+    --green: #4ade80;
+    --red: #f87171;
+    --orange: #fbbf24;
+    --radius: 8px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 22px; font-weight: 600; }
+  header .subtitle { color: var(--text2); font-size: 13px; margin-top: 2px; }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+  }
+  .panel-title {
+    font-size: 14px; font-weight: 600; margin-bottom: 14px;
+    color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  .btn {
+    padding: 10px 20px; border: none; border-radius: var(--radius);
+    font-size: 14px; font-weight: 500; cursor: pointer;
+    transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-success { background: var(--green); color: #000; }
+  .btn-success:hover { opacity: 0.9; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-danger:hover { opacity: 0.9; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Folder selector */
+  .folder-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .folder-display {
+    flex: 1; min-width: 200px; padding: 10px 14px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text2); font-size: 14px;
+  }
+  .folder-display.active { color: var(--text); }
+
+  .options-row {
+    display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px;
+  }
+  .option-group { display: flex; align-items: center; gap: 6px; }
+  .option-group label { font-size: 13px; color: var(--text2); }
+  .option-group input[type="text"] {
+    padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 13px; width: 140px; outline: none;
+  }
+  .option-group input[type="text"]:focus { border-color: var(--accent); }
+
+  /* Rule builder */
+  .rules-container { display: flex; flex-direction: column; gap: 12px; }
+  .rule-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  }
+  .rule-card select, .rule-card input[type="text"], .rule-card input[type="number"] {
+    padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 13px; outline: none;
+  }
+  .rule-card select { min-width: 140px; }
+  .rule-card input { min-width: 120px; flex: 1; }
+  .rule-card select:focus, .rule-card input:focus { border-color: var(--accent); }
+  .rule-remove {
+    background: none; border: none; color: var(--red); cursor: pointer;
+    font-size: 18px; padding: 4px 8px; border-radius: 4px; flex-shrink: 0;
+  }
+  .rule-remove:hover { background: rgba(248,113,113,0.1); }
+  .add-rule-btn {
+    background: transparent; border: 1px dashed var(--border); color: var(--text2);
+    padding: 10px; border-radius: var(--radius); cursor: pointer;
+    text-align: center; font-size: 13px; transition: all 0.2s;
+  }
+  .add-rule-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Preview table */
+  .preview-wrap { overflow-x: auto; max-height: 500px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; color: var(--text2);
+    border-bottom: 1px solid var(--border); font-weight: 500;
+    position: sticky; top: 0; background: var(--surface); z-index: 1;
+  }
+  td {
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  tr.changed td:nth-child(2) { color: var(--green); font-weight: 500; }
+  tr.conflict td:nth-child(2) { color: var(--red); font-weight: 500; }
+  tr.unchanged td { color: var(--text2); }
+
+  .stats-bar {
+    display: flex; gap: 20px; padding: 12px 0; font-size: 13px; color: var(--text2); flex-wrap: wrap;
+  }
+  .stats-bar span { display: flex; align-items: center; gap: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot-green { background: var(--green); }
+  .dot-red { background: var(--red); }
+  .dot-gray { background: var(--text2); }
+
+  .action-bar {
+    display: flex; gap: 10px; justify-content: space-between;
+    align-items: center; flex-wrap: wrap; margin-top: 16px;
+  }
+
+  .pagination {
+    display: flex; gap: 6px; align-items: center; justify-content: center;
+    margin-top: 12px; font-size: 13px; color: var(--text2);
+  }
+  .pagination button {
+    padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); cursor: pointer; font-size: 13px;
+  }
+  .pagination button:hover { border-color: var(--accent); }
+  .pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .toast {
+    position: fixed; top: 20px; right: 20px; padding: 14px 20px;
+    border-radius: var(--radius); font-size: 14px; z-index: 1000;
+    animation: slideIn 0.3s ease; max-width: 400px;
+  }
+  .toast-success { background: var(--green); color: #000; }
+  .toast-error { background: var(--red); color: #fff; }
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text2); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  .browser-warn {
+    background: #332800; border: 1px solid var(--orange); border-radius: var(--radius);
+    padding: 14px 18px; margin-bottom: 16px; font-size: 13px; color: var(--orange);
+    display: none;
+  }
+
+  .history-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px; background: var(--surface2); border-radius: 6px;
+    margin-bottom: 8px; font-size: 13px;
+  }
+  .history-item .time { color: var(--text2); }
+
+  #historyModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 99;
+    align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="browser-warn" id="browserWarn">
+    &#9888;&#65039; 此工具需要支持 File System Access API 的浏览器（Chrome 86+ / Edge 86+）。
+    当前浏览器不支持，请使用 Chrome 或 Edge 打开。
+  </div>
+
+  <header>
+    <div>
+      <h1>&#128221; 批量文件重命名工具</h1>
+      <div class="subtitle">纯浏览器端运行 &middot; 支持正则 / 预览 / 撤销 / 大批量处理</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" onclick="showHistory()">历史记录</button>
+      <button class="btn btn-danger" onclick="undoLast()" id="undoBtn" disabled>&#8630; 撤销上次</button>
+    </div>
+  </header>
+
+  <!-- Step 1: Folder -->
+  <div class="panel">
+    <div class="panel-title">1. 选择文件夹</div>
+    <div class="folder-row">
+      <div class="folder-display" id="folderDisplay">未选择文件夹</div>
+      <button class="btn btn-primary" onclick="pickFolder()">&#128193; 选择文件夹</button>
+    </div>
+    <div class="options-row">
+      <div class="option-group">
+        <label>过滤扩展名:</label>
+        <input type="text" id="filterExt" placeholder=".jpg,.png" oninput="autoPreview()">
+      </div>
+      <div class="option-group" style="color:var(--text2); font-size:13px;" id="fileCount"></div>
+    </div>
+  </div>
+
+  <!-- Step 2: Rules -->
+  <div class="panel">
+    <div class="panel-title">2. 设置命名规则（可多条叠加）</div>
+    <div class="rules-container" id="rulesContainer"></div>
+    <div class="add-rule-btn" onclick="addRule()">+ 添加规则</div>
+  </div>
+
+  <!-- Step 3: Preview -->
+  <div class="panel" id="previewPanel" style="display:none;">
+    <div class="panel-title">3. 预览变化</div>
+    <div class="stats-bar" id="statsBar"></div>
+    <div class="preview-wrap">
+      <table>
+        <thead><tr><th>原文件名</th><th>新文件名</th></tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+    <div class="action-bar">
+      <button class="btn btn-primary" onclick="refreshPreview()">&#8635; 刷新预览</button>
+      <button class="btn btn-success" onclick="applyRenames()" id="applyBtn" disabled>
+        &#10003; 应用重命名
+      </button>
+    </div>
+  </div>
+
+  <div id="emptyState" class="panel empty-state">
+    <div class="icon">&#128193;</div>
+    <p>点击「选择文件夹」开始</p>
+  </div>
+
+  <!-- History Modal -->
+  <div id="historyModal" style="display:none;">
+    <div class="panel" style="width:500px; max-height:70vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div class="panel-title" style="margin:0;">操作历史</div>
+        <button class="btn btn-outline" onclick="hideHistory()" style="padding:6px 12px;">关闭</button>
+      </div>
+      <div id="historyList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let dirHandle = null;
+let allFiles = [];       // [{name, handle}]
+let previewData = [];    // [{original, new, changed, conflict}]
+let renameHistory = [];  // [{timestamp, count, mappings:[{old,new,handle}]}]
+const PAGE_SIZE = 100;
+let currentPage = 0;
+
+// ── Browser check ──────────────────────────────────────────────────────────
+if (!('showDirectoryPicker' in window)) {
+  document.getElementById('browserWarn').style.display = 'block';
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Folder Picker ──────────────────────────────────────────────────────────
+async function pickFolder() {
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('无法选择文件夹: ' + e.message, 'error');
+    return;
+  }
+  document.getElementById('folderDisplay').textContent = dirHandle.name;
+  document.getElementById('folderDisplay').classList.add('active');
+  await loadFiles();
+}
+
+async function loadFiles() {
+  allFiles = [];
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === 'file') {
+      allFiles.push({ name, handle });
+    }
+  }
+  allFiles.sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+  document.getElementById('fileCount').textContent = `已加载 ${allFiles.length} 个文件`;
+  toast(`已加载 ${allFiles.length} 个文件`);
+  refreshPreview();
+}
+
+// ── Rule Management ────────────────────────────────────────────────────────
+const MODES = [
+  { value: 'prefix',    label: '添加前缀' },
+  { value: 'suffix',    label: '添加后缀' },
+  { value: 'replace',   label: '查找替换' },
+  { value: 'regex',     label: '正则替换' },
+  { value: 'sequence',  label: '序号命名' },
+  { value: 'extension', label: '更改扩展名' },
+  { value: 'case',      label: '大小写转换' },
+  { value: 'remove',    label: '删除字符' },
+  { value: 'insert',    label: '插入文本' },
+];
+
+const FIELD_TEMPLATES = {
+  prefix:    `<input type="text" data-field="prefix" placeholder="前缀文本" oninput="autoPreview()">`,
+  suffix:    `<input type="text" data-field="suffix" placeholder="后缀文本" oninput="autoPreview()">`,
+  replace:   `<input type="text" data-field="find" placeholder="查找" oninput="autoPreview()" style="max-width:180px">
+              <input type="text" data-field="replace" placeholder="替换为" oninput="autoPreview()" style="max-width:180px">
+              <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px;flex-shrink:0">
+                <input type="checkbox" data-field="caseSensitive" checked onchange="autoPreview()"> 区分大小写
+              </label>`,
+  regex:     `<input type="text" data-field="pattern" placeholder="正则表达式" oninput="autoPreview()">
+              <input type="text" data-field="replacement" placeholder="替换为 (支持 $1 $2)" oninput="autoPreview()">`,
+  sequence:  `<input type="text" data-field="template" placeholder="{name}_{num}{ext}" value="{name}_{num}{ext}" oninput="autoPreview()" style="max-width:220px">
+              <input type="number" data-field="start" value="1" style="width:70px" oninput="autoPreview()">
+              <input type="number" data-field="padding" value="3" style="width:70px" oninput="autoPreview()">`,
+  extension: `<input type="text" data-field="newExt" placeholder="新扩展名 (如 .png)" oninput="autoPreview()">`,
+  case:      `<select data-field="caseType" onchange="autoPreview()">
+                <option value="lower">全部小写</option>
+                <option value="upper">全部大写</option>
+                <option value="title">首字母大写</option>
+              </select>`,
+  remove:    `<input type="text" data-field="chars" placeholder="要删除的字符" oninput="autoPreview()">`,
+  insert:    `<input type="text" data-field="text" placeholder="插入文本" oninput="autoPreview()" style="max-width:180px">
+              <input type="number" data-field="position" value="0" style="width:90px" oninput="autoPreview()">`,
+};
+
+function addRule() {
+  const container = document.getElementById('rulesContainer');
+  const card = document.createElement('div');
+  card.className = 'rule-card';
+  card.innerHTML = `
+    <select onchange="onModeChange(this)">
+      ${MODES.map(m => `<option value="${m.value}">${m.label}</option>`).join('')}
+    </select>
+    <div class="rule-fields"></div>
+    <button class="rule-remove" onclick="this.parentElement.remove(); autoPreview();">&times;</button>
+  `;
+  container.appendChild(card);
+  onModeChange(card.querySelector('select'));
+}
+
+function onModeChange(sel) {
+  const fields = sel.closest('.rule-card').querySelector('.rule-fields');
+  fields.innerHTML = FIELD_TEMPLATES[sel.value] || '';
+  autoPreview();
+}
+
+function getRules() {
+  return Array.from(document.querySelectorAll('.rule-card')).map(card => {
+    const mode = card.querySelector('select').value;
+    const rule = { mode };
+    card.querySelectorAll('[data-field]').forEach(el => {
+      rule[el.dataset.field] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    return rule;
+  });
+}
+
+// ── Rename Logic (pure functions) ──────────────────────────────────────────
+function splitName(name) {
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0) return { stem: name, ext: '' };
+  return { stem: name.substring(0, dot), ext: name.substring(dot) };
+}
+
+function applyRule(name, index, rule) {
+  const { stem, ext } = splitName(name);
+  switch (rule.mode) {
+    case 'prefix':
+      return (rule.prefix || '') + name;
+    case 'suffix':
+      return stem + (rule.suffix || '') + ext;
+    case 'replace': {
+      const find = rule.find || '';
+      if (!find) return name;
+      if (rule.caseSensitive) return name.split(find).join(rule.replace || '');
+      return name.replace(new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), rule.replace || '');
+    }
+    case 'regex': {
+      if (!rule.pattern) return name;
+      try { return name.replace(new RegExp(rule.pattern, 'g'), rule.replacement || ''); }
+      catch { return name; }
+    }
+    case 'sequence': {
+      const tmpl = rule.template || '{name}_{num}{ext}';
+      const num = String(index + parseInt(rule.start || 1)).padStart(parseInt(rule.padding || 3), '0');
+      return tmpl.replace('{name}', stem).replace('{num}', num).replace('{ext}', ext);
+    }
+    case 'extension': {
+      let ne = rule.newExt || '';
+      if (ne && !ne.startsWith('.')) ne = '.' + ne;
+      return stem + ne;
+    }
+    case 'case':
+      if (rule.caseType === 'upper') return name.toUpperCase();
+      if (rule.caseType === 'title') return name.replace(/\b\w/g, c => c.toUpperCase());
+      return name.toLowerCase();
+    case 'remove':
+      return Array.from(rule.chars || '').reduce((n, c) => n.split(c).join(''), name);
+    case 'insert': {
+      const pos = parseInt(rule.position || 0);
+      return stem.slice(0, pos) + (rule.text || '') + stem.slice(pos) + ext;
+    }
+    default: return name;
+  }
+}
+
+// ── Preview ────────────────────────────────────────────────────────────────
+let previewTimer = null;
+function autoPreview() {
+  if (!allFiles.length) return;
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(refreshPreview, 200);
+}
+
+function refreshPreview() {
+  if (!allFiles.length) return;
+  const rules = getRules();
+  const filterExt = document.getElementById('filterExt').value.trim();
+
+  let filtered = allFiles;
+  if (filterExt) {
+    const exts = filterExt.split(',').map(e => {
+      e = e.trim().toLowerCase();
+      return e.startsWith('.') ? e : '.' + e;
+    });
+    filtered = allFiles.filter(f => {
+      const { ext } = splitName(f.name);
+      return exts.includes(ext.toLowerCase());
+    });
+  }
+
+  previewData = filtered.map((f, i) => {
+    let newName = f.name;
+    for (const rule of rules) newName = applyRule(newName, i, rule);
+    return {
+      original: f.name,
+      new: newName,
+      changed: newName !== f.name,
+      conflict: false,
+      handle: f.handle,
+    };
+  });
+
+  // Detect conflicts
+  const seen = {};
+  previewData.forEach((p, i) => {
+    const key = p.new.toLowerCase();
+    if (key in seen) {
+      p.conflict = true;
+      previewData[seen[key]].conflict = true;
+    } else {
+      seen[key] = i;
+    }
+  });
+
+  currentPage = 0;
+  renderPreview();
+  document.getElementById('previewPanel').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'none';
+}
+
+function renderPreview() {
+  const body = document.getElementById('previewBody');
+  const totalPages = Math.ceil(previewData.length / PAGE_SIZE);
+  const start = currentPage * PAGE_SIZE;
+  const pageData = previewData.slice(start, start + PAGE_SIZE);
+
+  const changedCount = previewData.filter(p => p.changed).length;
+  const conflictCount = previewData.filter(p => p.conflict).length;
+  const unchangedCount = previewData.length - changedCount;
+
+  document.getElementById('statsBar').innerHTML = `
+    <span><span class="dot dot-green"></span> 将重命名: ${changedCount}</span>
+    <span><span class="dot dot-gray"></span> 无变化: ${unchangedCount}</span>
+    <span><span class="dot dot-red"></span> 冲突: ${conflictCount}</span>
+    <span>共 ${previewData.length} 个文件</span>
+  `;
+
+  body.innerHTML = pageData.map(p => {
+    const cls = p.conflict ? 'conflict' : (p.changed ? 'changed' : 'unchanged');
+    return `<tr class="${cls}">
+      <td title="${esc(p.original)}">${esc(p.original)}</td>
+      <td title="${esc(p.new)}">${esc(p.new)}${p.conflict ? ' &#9888;' : ''}</td>
+    </tr>`;
+  }).join('');
+
+  const pag = document.getElementById('pagination');
+  if (totalPages > 1) {
+    pag.innerHTML = `
+      <button onclick="goPage(${currentPage - 1})" ${currentPage === 0 ? 'disabled' : ''}>上一页</button>
+      <span>第 ${currentPage + 1} / ${totalPages} 页</span>
+      <button onclick="goPage(${currentPage + 1})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>下一页</button>
+    `;
+  } else {
+    pag.innerHTML = '';
+  }
+
+  document.getElementById('applyBtn').disabled = changedCount === 0 || conflictCount > 0;
+}
+
+function goPage(n) { currentPage = n; renderPreview(); }
+
+// ── Apply Renames ──────────────────────────────────────────────────────────
+async function applyRenames() {
+  const toRename = previewData.filter(p => p.changed && !p.conflict);
+  if (!toRename.length) return;
+  if (!confirm(`确定要重命名 ${toRename.length} 个文件吗？`)) return;
+
+  const mappings = [];
+  let errors = 0;
+
+  for (const p of toRename) {
+    try {
+      await p.handle.move(p.new);
+      mappings.push({ old: p.original, new: p.new, handle: p.handle });
+    } catch (e) {
+      // Fallback: read content, create new file, remove old
+      try {
+        const file = await p.handle.getFile();
+        const content = await file.arrayBuffer();
+        const newHandle = await dirHandle.getFileHandle(p.new, { create: true });
+        const writable = await newHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        await dirHandle.removeEntry(p.original);
+        mappings.push({ old: p.original, new: p.new, handle: newHandle });
+      } catch (e2) {
+        console.error(`重命名失败 ${p.original}:`, e2);
+        errors++;
+      }
+    }
+  }
+
+  if (mappings.length) {
+    renameHistory.push({
+      timestamp: new Date().toLocaleString('zh-CN'),
+      count: mappings.length,
+      mappings,
+    });
+    document.getElementById('undoBtn').disabled = false;
+  }
+
+  toast(`成功重命名 ${mappings.length} 个文件` + (errors ? `，${errors} 个失败` : ''));
+  await loadFiles();
+}
+
+// ── Undo ───────────────────────────────────────────────────────────────────
+async function undoLast() {
+  if (!renameHistory.length) { toast('没有可撤销的操作', 'error'); return; }
+  if (!confirm('确定要撤销上次重命名操作吗？')) return;
+
+  const batch = renameHistory.pop();
+  let restored = 0, errors = 0;
+
+  for (const m of [...batch.mappings].reverse()) {
+    try {
+      const handle = await dirHandle.getFileHandle(m.new);
+      await handle.move(m.old);
+      restored++;
+    } catch {
+      try {
+        const handle = await dirHandle.getFileHandle(m.new);
+        const file = await handle.getFile();
+        const content = await file.arrayBuffer();
+        const oldHandle = await dirHandle.getFileHandle(m.old, { create: true });
+        const writable = await oldHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        await dirHandle.removeEntry(m.new);
+        restored++;
+      } catch (e2) {
+        console.error(`撤销失败 ${m.new}:`, e2);
+        errors++;
+      }
+    }
+  }
+
+  document.getElementById('undoBtn').disabled = !renameHistory.length;
+  toast(`已撤销，恢复了 ${restored} 个文件` + (errors ? `，${errors} 个失败` : ''));
+  await loadFiles();
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+function showHistory() {
+  const list = document.getElementById('historyList');
+  if (!renameHistory.length) {
+    list.innerHTML = '<div style="color:var(--text2);text-align:center;padding:20px;">暂无操作记录</div>';
+  } else {
+    list.innerHTML = [...renameHistory].reverse().map(h => `
+      <div class="history-item">
+        <div>
+          <div>${h.count} 个文件</div>
+          <div class="time">${h.timestamp}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('historyModal').style.display = 'flex';
+}
+
+function hideHistory() {
+  document.getElementById('historyModal').style.display = 'none';
+}
+
+// Init
+addRule();
+</script>
+</body>
+</html>
